@@ -40,3 +40,36 @@ def get_portfolio_prices(tickers):
             errors[ticker] = str(error)
 
     return prices, errors
+
+
+@st.cache_data(ttl=3600)
+def get_historical_prices(tickers, period="1y"):
+    """
+    Download historical adjusted closing prices
+    for multiple stocks.
+    """
+
+    historical_data = {}
+
+    for ticker in tickers:
+        try:
+            stock = yf.Ticker(ticker)
+
+            history = stock.history(
+                period=period,
+                auto_adjust=True
+            )
+
+            if not history.empty:
+                historical_data[ticker] = history["Close"]
+
+        except Exception as error:
+            print(f"Error retrieving {ticker}: {error}")
+
+    if not historical_data:
+        return pd.DataFrame()
+
+    prices = pd.DataFrame(historical_data)
+
+    return prices.dropna(how="all").sort_index()
+

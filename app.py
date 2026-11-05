@@ -3,8 +3,18 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-from utils.stock_data import get_portfolio_prices
-from utils.analytics import calculate_portfolio
+from utils.stock_data import (
+    get_portfolio_prices,
+    get_historical_prices
+)
+
+from utils.analytics import (
+    calculate_portfolio,
+    calculate_portfolio_weights,
+    calculate_portfolio_returns,
+    calculate_cumulative_returns,
+    calculate_risk_metrics
+)
 
 
 st.set_page_config(
@@ -171,3 +181,159 @@ st.plotly_chart(bar_chart, use_container_width=True)
 st.caption(
     "Educational project only. Not financial or investment advice."
 )
+
+
+# ==========================================
+# ADVANCED FINANCIAL ANALYTICS
+# ==========================================
+
+st.divider()
+
+st.header("Advanced Financial Analytics")
+
+# Retrieve historical prices for portfolio stocks
+# and S&P 500 benchmark
+
+with st.spinner("Analyzing historical performance..."):
+
+    historical_prices = get_historical_prices(
+        tickers + ["^GSPC"],
+        period="1y"
+    )
+
+if historical_prices.empty:
+    st.warning("Historical data is currently unavailable.")
+
+else:
+    available_stocks = [
+        ticker for ticker in tickers
+        if ticker in historical_prices.columns
+    ]
+
+    if not available_stocks:
+        st.warning("No matching historical stock data found.")
+
+    else:
+        # Calculate current portfolio allocation
+
+        weights = calculate_portfolio_weights(results)
+
+        allocation = weights * 100
+
+        st.subheader("Portfolio Diversification")
+
+        allocation_df = pd.DataFrame({
+            "Stock": allocation.index,
+            "Allocation (%)": allocation.values
+        })
+
+        allocation_chart = px.bar(
+            allocation_df,
+            x="Stock",
+            y="Allocation (%)",
+            color="Stock",
+            title="Current Portfolio Allocation"
+        )
+
+        st.plotly_chart(
+            allocation_chart,
+            use_container_width=True
+        )
+
+        # Calculate historical portfolio returns
+
+        portfolio_returns = calculate_portfolio_returns(
+            historical_prices[available_stocks],
+            weights
+        )
+
+        cumulative_returns = calculate_cumulative_returns(
+            portfolio_returns
+        )
+
+        # Calculate risk metrics
+
+        risk_metrics = calculate_risk_metrics(
+            portfolio_returns
+        )
+
+        st.subheader("Portfolio Risk Analysis")
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric(
+            "Historical Return",
+            f"{risk_metrics['Historical Return']:.2f}%"
+        )
+
+        col2.metric(
+            "Annualized Volatility",
+            f"{risk_metrics['Annualized Volatility']:.2f}%"
+        )
+
+        col3.metric(
+            "Maximum Drawdown",
+            f"{risk_metrics['Maximum Drawdown']:.2f}%"
+        )
+
+        # Historical performance chart
+
+        st.subheader("Historical Portfolio Performance")
+
+        performance_df = pd.DataFrame({
+            "Portfolio": cumulative_returns * 100
+        })
+
+        # Compare against S&P 500
+
+        if "^GSPC" in historical_prices.columns:
+
+            benchmark_prices = historical_prices["^GSPC"].dropna()
+
+            benchmark_returns = (
+                benchmark_prices.pct_change().dropna()
+            )
+
+            benchmark_returns = benchmark_returns.reindex(
+                portfolio_returns.index
+            )
+
+            benchmark_returns = benchmark_returns.dropna()
+
+            if not benchmark_returns.empty:
+
+                aligned_portfolio_returns = (
+                    portfolio_returns.reindex(
+                        benchmark_returns.index
+                    )
+                )
+
+                performance_df = pd.DataFrame({
+                    "Portfolio": (
+                        (1 + aligned_portfolio_returns).cumprod() - 1
+                    ) * 100,
+
+                    "S&P 500": (
+                        (1 + benchmark_returns).cumprod() - 1
+                    ) * 100
+                })
+
+        performance_chart = px.line(
+            performance_df,
+            title="Portfolio vs S&P 500",
+            labels={
+                "value": "Cumulative Return (%)",
+                "index": "Date"
+            }
+        )
+
+        st.plotly_chart(
+            performance_chart,
+            use_container_width=True
+        )
+
+        st.caption(
+            "Historical analysis is illustrative. "
+            "It does not guarantee future performance."
+        )
+
