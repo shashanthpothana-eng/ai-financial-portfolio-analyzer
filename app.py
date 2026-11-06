@@ -15,6 +15,13 @@ from utils.analytics import (
     calculate_cumulative_returns,
     calculate_risk_metrics
 )
+from utils.ai_analyst import generate_portfolio_analysis
+from utils.chat_manager import (
+    initialize_chat,
+    clear_chat
+)
+
+from utils.ai_agent import chat_with_financial_agent
 
 
 st.set_page_config(
@@ -181,8 +188,12 @@ st.plotly_chart(bar_chart, use_container_width=True)
 st.caption(
     "Educational project only. Not financial or investment advice."
 )
-
-
+# Default risk metrics in case historical data is unavailable
+risk_metrics = {
+    "Historical Return": 0.0,
+    "Annualized Volatility": 0.0,
+    "Maximum Drawdown": 0.0
+}
 # ==========================================
 # ADVANCED FINANCIAL ANALYTICS
 # ==========================================
@@ -337,3 +348,142 @@ else:
             "It does not guarantee future performance."
         )
 
+
+# ==========================================
+# DUAL MODEL AI FINANCIAL ANALYST
+# ==========================================
+
+st.divider()
+
+st.header("🤖 AI Financial Analyst")
+
+st.write(
+    "Choose between a locally hosted Llama model "
+    "and the OpenAI cloud model."
+)
+
+selected_provider = st.selectbox(
+    "Select AI Model",
+    options=["ollama", "openai"],
+    format_func=lambda x: (
+        "Llama 3.2 3B (Local)" if x == "ollama"
+        else "OpenAI GPT-6 Luna (Cloud)"
+    )
+)
+
+if selected_provider == "ollama":
+
+    st.success(
+        "Local AI selected. Your portfolio prompt "
+        "will be processed through Ollama."
+    )
+
+else:
+
+    st.info(
+        "Cloud AI selected. Portfolio metrics included "
+        "in your prompt will be sent to OpenAI."
+    )
+
+if st.button("Generate AI Portfolio Analysis"):
+
+    try:
+
+        with st.spinner(
+            f"Analyzing with {selected_provider}..."
+        ):
+
+            analysis = generate_portfolio_analysis(
+                portfolio=results,
+                risk_metrics=risk_metrics,
+                total_investment=total_investment,
+                total_value=total_value,
+                total_profit=total_profit,
+                total_return=total_return,
+                provider=selected_provider
+            )
+
+        st.subheader("AI-Generated Financial Insights")
+
+        st.markdown(analysis)
+
+        st.caption(
+            f"Generated using: {selected_provider}"
+        )
+
+
+
+    except Exception as error:
+
+        st.error(
+            f"AI analysis failed: {error}"
+        )
+
+        st.info(
+            "Check your API key, internet connection, "
+            "model availability, and Ollama status."
+        )
+
+
+
+# ==========================================
+# AI FINANCIAL CHATBOT
+# ==========================================
+
+st.divider()
+
+st.header("💬 AI Financial Assistant")
+
+st.caption(
+    "Ask questions about your portfolio, "
+    "stock performance and risk."
+)
+
+initialize_chat()
+
+# Clear conversation
+if st.button("🗑️ Clear Chat", key="clear_financial_chat"):
+    clear_chat()
+    st.rerun()
+
+# Display conversation history
+for message in st.session_state.financial_chat_history:
+
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Chat input
+question = st.chat_input(
+    "Ask something about your portfolio..."
+)
+
+if question:
+
+    with st.chat_message("user"):
+        st.markdown(question)
+
+    with st.chat_message("assistant"):
+
+        with st.spinner("Analyzing your portfolio..."):
+
+            try:
+
+                answer = chat_with_financial_agent(
+                    question=question,
+                    portfolio=results,
+                    risk_metrics=risk_metrics,
+                    conversation_history=(
+                        st.session_state.financial_chat_history
+                    )
+                )
+
+                st.markdown(answer)
+
+            except Exception as e:
+
+                st.error(f"Chatbot error: {e}")
+
+st.caption(
+    "Educational financial analysis only. "
+    "Not investment advice."
+)
